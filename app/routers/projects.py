@@ -7,7 +7,7 @@ from app.db.database import get_db
 from app.dependencies.auth import get_current_user
 from app.models.project import Project, ProjectMember
 from app.models.user import User
-from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
+from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate, ProjectMemberResponse
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -121,3 +121,64 @@ def delete_project(project_id: int,db: Session = Depends(get_db),current_user: U
     db.commit()
 
     return None
+
+# Task 5-day3: thêm thành viên vào dự án
+@router.post(
+    "/{project_id}/members",
+    response_model=ProjectMemberResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_project_member(
+    project_id: int,
+    member_in: ProjectMemberAdd,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy dự án",
+        )
+
+    if project.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Chỉ chủ dự án được thêm thành viên",
+        )
+
+    user = db.query(User).filter(User.id == member_in.user_id).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy người dùng",
+        )
+
+    existing_member = (
+        db.query(ProjectMember)
+        .filter(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == member_in.user_id,
+        )
+        .first()
+    )
+
+    if existing_member:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Người dùng đã là thành viên của dự án",
+        )
+
+    member = ProjectMember(
+        project_id=project_id,
+        user_id=member_in.user_id,
+        role=member_in.role,
+    )
+
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+
+    return member
