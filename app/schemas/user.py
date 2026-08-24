@@ -1,14 +1,16 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from app.models.enums import UserRole
 
 class UserBase(BaseModel):
     email: EmailStr
     full_name: str
 
-class UserCreate(UserBase):
-    password: str
+class UserCreate(BaseModel):
+    email: EmailStr
+    full_name: str = Field(..., min_length=1, max_length=255)
+    password: str = Field(..., min_length=8, max_length=72)
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None

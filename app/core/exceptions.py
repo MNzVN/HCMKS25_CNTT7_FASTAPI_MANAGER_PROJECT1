@@ -25,9 +25,7 @@ async def app_exception_handler(request: Request, exc: AppException):
 
 
 # 2. Bắt lỗi validate dữ liệu đầu vào Pydantic (422)
-async def validation_exception_handler(
-    request: Request, exc: RequestValidationError
-):
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
   return JSONResponse(
       status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
       content={

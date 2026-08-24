@@ -33,7 +33,7 @@ def list_users(
             (User.full_name.ilike(f"%{search}%")) | (User.email.ilike(f"%{search}%"))
         )
 
-    # Lọc theo trạng thái is_active nếu có truyền param
+    # Lọc theo trạng thái is_active nếu có truyền param 
     if is_active is not None:
         query = query.filter(User.is_active == is_active)
 

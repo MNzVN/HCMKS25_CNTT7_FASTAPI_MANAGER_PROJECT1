@@ -9,11 +9,11 @@ password_hash_helper = PasswordHash((BcryptHasher(),))
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return password_hash_helper.verify(plain_password, hashed_password)
-
+# Hàm hash mật khẩu
 def get_password_hash(password: str) -> str:
     return password_hash_helper.hash(password)
 
-# Bổ sung hàm tạo Access Token
+# Hàm tạo Access Token
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     if expires_delta:

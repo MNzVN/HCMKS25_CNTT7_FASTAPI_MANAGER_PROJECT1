@@ -13,7 +13,6 @@ class ProjectCreate(ProjectBase):
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
-    description: Optional[str] = None
 
 class ProjectMemberAdd(BaseModel):
     user_id: int

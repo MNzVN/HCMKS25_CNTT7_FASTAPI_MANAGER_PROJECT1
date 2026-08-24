@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.db.database import get_db
+from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse
 from app.schemas.auth import LoginRequest, Token
 from app.core.security import get_password_hash, verify_password, create_access_token
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
-
+# Register
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.email == user_in.email).first()
@@ -21,7 +22,7 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
         email=user_in.email,
         password_hash=get_password_hash(user_in.password),
         full_name=user_in.full_name,
-        role="USER",
+        role=user_in.role if user_in.role else UserRole.USER,
         is_active=True
     )
     db.add(new_user)
@@ -29,7 +30,7 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return new_user
 
-# endpoint Login
+# Login
 @router.post("/login", response_model=Token)
 def login(login_data: LoginRequest, db: Session = Depends(get_db)):
     # 1. Tìm user theo email
