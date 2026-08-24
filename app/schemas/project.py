@@ -1,12 +1,12 @@
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from app.models.enums import ProjectMemberRole
 from app.schemas.user import UserResponse
 
 class ProjectBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
+    name: str = Field(...,min_length=1,max_length=255,)
+    description: Optional[str] = Field(default=None,max_length=1000,)
 
 class ProjectCreate(ProjectBase):
     pass

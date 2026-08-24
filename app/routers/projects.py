@@ -7,8 +7,8 @@ from app.db.database import get_db
 from app.dependencies.auth import get_current_user
 from app.models.project import Project, ProjectMember
 from app.models.user import User
-from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate, ProjectMemberResponse
-
+from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate, ProjectMemberResponse, ProjectMemberAdd
+from app.models.enums import ProjectMemberRole
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
 # Task 1-day3: tạo dự án mới
@@ -123,11 +123,7 @@ def delete_project(project_id: int,db: Session = Depends(get_db),current_user: U
     return None
 
 # Task 5-day3: thêm thành viên vào dự án
-@router.post(
-    "/{project_id}/members",
-    response_model=ProjectMemberResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/{project_id}/members",response_model=ProjectMemberResponse,status_code=status.HTTP_201_CREATED,)
 def add_project_member(
     project_id: int,
     member_in: ProjectMemberAdd,
@@ -182,3 +178,114 @@ def add_project_member(
     db.refresh(member)
 
     return member
+
+# Task 6-day3: xóa thành viên khỏi dự án
+@router.delete("/{project_id}/members/{user_id}",status_code=status.HTTP_204_NO_CONTENT,)
+def remove_project_member(project_id: int,user_id: int,db: Session = Depends(get_db),current_user: User = Depends(get_current_user),):
+    project = (
+        db.query(Project)
+        .filter(Project.id == project_id)
+        .first()
+    )
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy dự án",
+        )
+
+    if project.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Chỉ chủ dự án được xóa thành viên",
+        )
+
+    if project.owner_id == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Không thể xóa chủ dự án",
+        )
+
+    member = (
+        db.query(ProjectMember)
+        .filter(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == user_id,
+        )
+        .first()
+    )
+
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Người dùng không phải thành viên của dự án",
+        )
+
+    if member.role == ProjectMemberRole.OWNER:
+        owner_count = (
+            db.query(ProjectMember)
+            .filter(
+                ProjectMember.project_id == project_id,
+                ProjectMember.role == ProjectMemberRole.OWNER,
+            )
+            .count()
+        )
+
+        if owner_count <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Không thể xóa owner cuối cùng của dự án",
+            )
+
+    db.delete(member)
+    db.commit()
+
+    return None
+
+# Task 7-day3: danh sách thành viên của dự án
+@router.get(
+    "/{project_id}/members",
+    response_model=List[ProjectMemberResponse],
+)
+def list_project_members(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = (
+        db.query(Project)
+        .filter(Project.id == project_id)
+        .first()
+    )
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy dự án",
+        )
+
+    is_owner = project.owner_id == current_user.id
+
+    is_member = (
+        db.query(ProjectMember)
+        .filter(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == current_user.id,
+        )
+        .first()
+        is not None
+    )
+
+    if not is_owner and not is_member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bạn không có quyền xem thành viên",
+        )
+
+    members = (
+        db.query(ProjectMember)
+        .filter(ProjectMember.project_id == project_id)
+        .all()
+    )
+
+    return members
