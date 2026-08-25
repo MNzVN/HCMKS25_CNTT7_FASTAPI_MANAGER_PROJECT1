@@ -7,6 +7,7 @@ from app.schemas.task import TaskCreate, TaskUpdate
 from app.models.enums import TaskPriority, TaskStatus
 from app.services.projects import (
     get_project_or_404,
+    require_owner,
     require_access,
 )
 
@@ -58,6 +59,7 @@ def list_tasks(
     search: str | None,
     page: int,
     size: int,
+    sort: str,
     current_user,
     db: Session,
 ) -> list[Task]:
@@ -78,11 +80,19 @@ def list_tasks(
     if search:
         query = query.filter(Task.title.ilike(f"%{search}%"))
 
+    if sort == "created_at_asc":
+        query = query.order_by(Task.created_at.asc())
+    elif sort == "due_date_asc":
+        query = query.order_by(Task.due_date.asc())
+    elif sort == "due_date_desc":
+        query = query.order_by(Task.due_date.desc())
+    else:
+        query = query.order_by(Task.created_at.desc())
+
     offset = (page - 1) * size
 
     return (
         query
-        .order_by(Task.created_at.desc())
         .offset(offset)
         .limit(size)
         .all()
@@ -102,9 +112,31 @@ def get_task(task_id: int, current_user, db: Session,) -> Task:
 
     return task
 
+def require_update_permission(task: Task, current_user) -> None:
+    if task.project.owner_id == current_user.id:
+        return
+
+    if task.assignee_id == current_user.id:
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Bạn không có quyền cập nhật task này",
+    )
+
 def update_task(task_id: int, task_in: TaskUpdate, current_user, db: Session,) -> Task:
     task = get_task(task_id, current_user, db)
     project = get_project_or_404(task.project_id, db)
+    require_update_permission(task, current_user)
+
+    update_data = task_in.model_dump(exclude_unset=True)
+
+    if project.owner_id != current_user.id:
+        if set(update_data) - {"status"}:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Assignee chỉ được cập nhật trạng thái task",
+            )
 
     if task_in.assignee_id is not None:
         assignee_is_owner = project.owner_id == task_in.assignee_id
@@ -125,8 +157,6 @@ def update_task(task_id: int, task_in: TaskUpdate, current_user, db: Session,) -
                 detail="Người được giao phải là thành viên của dự án",
             )
 
-    update_data = task_in.model_dump(exclude_unset=True)
-    # Gán từng giá trị mới vào object SQLAlchemy
     for field, value in update_data.items():
         setattr(task, field, value)
 
@@ -134,3 +164,11 @@ def update_task(task_id: int, task_in: TaskUpdate, current_user, db: Session,) -
     db.refresh(task)
 
     return task
+
+def delete_task(task_id: int,current_user,db: Session,) -> None:
+    task = get_task(task_id, current_user, db)
+    project = get_project_or_404(task.project_id, db)
+    require_owner(project, current_user)
+
+    db.delete(task)
+    db.commit()

@@ -8,7 +8,11 @@ from app.routers import auth, users, projects, tasks
 # Tự động tạo bảng DB khi chạy
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Team Project Management API")
+app = FastAPI(
+    title="Team Project Management API",
+    description="API quản lý tài khoản, dự án, thành viên và công việc.",
+    version="1.0.0",
+)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(projects.router)
