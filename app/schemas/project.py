@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from app.models.enums import ProjectMemberRole
-from app.schemas.user import UserResponse
+from app.schemas.user import  UserResponse
 
 class ProjectBase(BaseModel):
     name: str = Field(...,min_length=1,max_length=255,)
@@ -16,7 +16,7 @@ class ProjectUpdate(BaseModel):
 
 class ProjectMemberAdd(BaseModel):
     user_id: int
-    role: ProjectMemberRole = ProjectMemberRole.MEMBER
+    # role: ProjectMemberRole = ProjectMemberRole.MEMBER
 
 class ProjectMemberResponse(BaseModel):
     user_id: int
@@ -26,10 +26,21 @@ class ProjectMemberResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class ProjectMemberDetail(BaseModel):
+    user_id: int
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    role: ProjectMemberRole
+
+    model_config = ConfigDict(from_attributes=True)
+
 class ProjectResponse(ProjectBase):
     id: int
     owner_id: int
     created_at: datetime
-    owner: Optional[UserResponse] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProjectDetailResponse(ProjectResponse):
+    members: List[ProjectMemberDetail] = Field(default_factory=list)

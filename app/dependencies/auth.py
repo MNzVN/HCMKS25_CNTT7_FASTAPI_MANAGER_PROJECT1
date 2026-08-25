@@ -11,7 +11,7 @@ from app.models.user import User
 security_scheme = HTTPBearer()
 
 # Task 4-day2: Dependency giải mã token và lấy User hiện tại
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security_scheme),db: Session = Depends(get_db),) -> User:
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security_scheme), db: Session = Depends(get_db),) -> User:
     token = credentials.credentials
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

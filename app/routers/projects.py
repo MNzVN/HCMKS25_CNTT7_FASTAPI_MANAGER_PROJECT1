@@ -1,291 +1,53 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query, status, HTTPException
+
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
 
 from app.db.database import get_db
 from app.dependencies.auth import get_current_user
-from app.models.project import Project, ProjectMember
 from app.models.user import User
-from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate, ProjectMemberResponse, ProjectMemberAdd
-from app.models.enums import ProjectMemberRole
+from app.schemas.project import (
+    ProjectCreate,
+    ProjectDetailResponse,
+    ProjectMemberAdd,
+    ProjectMemberResponse,
+    ProjectResponse,
+    ProjectUpdate,
+)
+from app.services import projects as project_service
+
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
-# Task 1-day3: tạo dự án mới
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED,)
-def create_project(project_in: ProjectCreate,db: Session = Depends(get_db),current_user: User = Depends(get_current_user),):
-    project = Project(
-        name=project_in.name,
-        description=project_in.description,
-        owner_id=current_user.id,
-    )
+def create_project(project_in: ProjectCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return project_service.create_project(project_in, current_user, db)
 
-    db.add(project)
-    db.commit()
-    db.refresh(project)
- 
-    return project
 
-# Task 2-day3: lấy danh sách dự án của user hiện tại
 @router.get("", response_model=List[ProjectResponse])
-def list_projects(search: Optional[str] = Query(None, description="Tìm theo tên dự án"),db: Session = Depends(get_db),current_user: User = Depends(get_current_user),):
-    query = (
-        db.query(Project)
-        .outerjoin(ProjectMember, Project.id == ProjectMember.project_id)
-        .filter(
-            or_(
-                Project.owner_id == current_user.id,
-                ProjectMember.user_id == current_user.id,
-            )
-        )
-    )
+def list_projects(search: Optional[str] = Query(None, description="Tìm theo tên dự án"), db: Session = Depends(get_db), current_user: User = Depends(get_current_user),):
+    return project_service.list_projects(search, current_user, db)
 
-    if search:
-        query = query.filter(Project.name.ilike(f"%{search}%"))
-
-    return query.distinct().all()
-
-# Task 3-day3: xem chi tiết dự án
-@router.get("/{project_id}", response_model=ProjectResponse)
+@router.get("/{project_id}", response_model=ProjectDetailResponse)
 def get_project_detail(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user),):
-    project = (db.query(Project).filter(Project.id == project_id).first())
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy dự án",
-        )
-    is_owner = project.owner_id == current_user.id
+    return project_service.get_project_detail(project_id, current_user, db)
 
-    is_member = (
-        db.query(ProjectMember)
-        .filter(
-            ProjectMember.project_id == project_id,
-            ProjectMember.user_id == current_user.id,
-        )
-        .first()
-        is not None
-    )
-
-    if not is_owner and not is_member:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Bạn không có quyền xem dự án này",
-        )
-
-    return project
-
-# Task 4-day3: cập nhật dự án
 @router.patch("/{project_id}", response_model=ProjectResponse)
-def update_project(project_id: int,project_in: ProjectUpdate,db: Session = Depends(get_db),current_user: User = Depends(get_current_user),):
-    project = db.query(Project).filter(Project.id == project_id).first()
+def update_project(project_id: int, project_in: ProjectUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return project_service.update_project(project_id, project_in, current_user, db)
 
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy dự án",
-        )
-
-    if project.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Chỉ chủ dự án được cập nhật",
-        )
-
-    if project_in.name is not None:
-        project.name = project_in.name
-
-    db.commit()
-    db.refresh(project)
-
-    return project
-
-
-# Task 4-day3: xóa dự án
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_project(project_id: int,db: Session = Depends(get_db),current_user: User = Depends(get_current_user),):
-    project = db.query(Project).filter(Project.id == project_id).first()
+def delete_project(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    project_service.delete_project(project_id, current_user, db)
 
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy dự án",
-        )
 
-    if project.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Chỉ chủ dự án được xóa",
-        )
+@router.post("/{project_id}/members", response_model=ProjectMemberResponse, status_code=status.HTTP_201_CREATED,)
+def add_project_member(project_id: int, member_in: ProjectMemberAdd, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return project_service.add_project_member(project_id, member_in, current_user, db)
 
-    db.delete(project)
-    db.commit()
+@router.delete("/{project_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_project_member(project_id: int, user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    project_service.remove_project_member(project_id, user_id, current_user, db)
 
-    return None
-
-# Task 5-day3: thêm thành viên vào dự án
-@router.post("/{project_id}/members",response_model=ProjectMemberResponse,status_code=status.HTTP_201_CREATED,)
-def add_project_member(
-    project_id: int,
-    member_in: ProjectMemberAdd,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    project = db.query(Project).filter(Project.id == project_id).first()
-
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy dự án",
-        )
-
-    if project.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Chỉ chủ dự án được thêm thành viên",
-        )
-
-    user = db.query(User).filter(User.id == member_in.user_id).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy người dùng",
-        )
-
-    existing_member = (
-        db.query(ProjectMember)
-        .filter(
-            ProjectMember.project_id == project_id,
-            ProjectMember.user_id == member_in.user_id,
-        )
-        .first()
-    )
-
-    if existing_member:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Người dùng đã là thành viên của dự án",
-        )
-
-    member = ProjectMember(
-        project_id=project_id,
-        user_id=member_in.user_id,
-        role=member_in.role,
-    )
-
-    db.add(member)
-    db.commit()
-    db.refresh(member)
-
-    return member
-
-# Task 6-day3: xóa thành viên khỏi dự án
-@router.delete("/{project_id}/members/{user_id}",status_code=status.HTTP_204_NO_CONTENT,)
-def remove_project_member(project_id: int,user_id: int,db: Session = Depends(get_db),current_user: User = Depends(get_current_user),):
-    project = (
-        db.query(Project)
-        .filter(Project.id == project_id)
-        .first()
-    )
-
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy dự án",
-        )
-
-    if project.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Chỉ chủ dự án được xóa thành viên",
-        )
-
-    if project.owner_id == user_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Không thể xóa chủ dự án",
-        )
-
-    member = (
-        db.query(ProjectMember)
-        .filter(
-            ProjectMember.project_id == project_id,
-            ProjectMember.user_id == user_id,
-        )
-        .first()
-    )
-
-    if not member:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Người dùng không phải thành viên của dự án",
-        )
-
-    if member.role == ProjectMemberRole.OWNER:
-        owner_count = (
-            db.query(ProjectMember)
-            .filter(
-                ProjectMember.project_id == project_id,
-                ProjectMember.role == ProjectMemberRole.OWNER,
-            )
-            .count()
-        )
-
-        if owner_count <= 1:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Không thể xóa owner cuối cùng của dự án",
-            )
-
-    db.delete(member)
-    db.commit()
-
-    return None
-
-# Task 7-day3: danh sách thành viên của dự án
-@router.get(
-    "/{project_id}/members",
-    response_model=List[ProjectMemberResponse],
-)
-def list_project_members(
-    project_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    project = (
-        db.query(Project)
-        .filter(Project.id == project_id)
-        .first()
-    )
-
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy dự án",
-        )
-
-    is_owner = project.owner_id == current_user.id
-
-    is_member = (
-        db.query(ProjectMember)
-        .filter(
-            ProjectMember.project_id == project_id,
-            ProjectMember.user_id == current_user.id,
-        )
-        .first()
-        is not None
-    )
-
-    if not is_owner and not is_member:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Bạn không có quyền xem thành viên",
-        )
-
-    members = (
-        db.query(ProjectMember)
-        .filter(ProjectMember.project_id == project_id)
-        .all()
-    )
-
-    return members
+@router.get("/{project_id}/members", response_model=List[ProjectMemberResponse])
+def list_project_members(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return project_service.list_project_members(project_id, current_user, db)
