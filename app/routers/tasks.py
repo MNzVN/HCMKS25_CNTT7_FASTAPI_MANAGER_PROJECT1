@@ -43,3 +43,15 @@ def list_tasks(
         current_user=current_user,
         db=db,
     )
+
+@router.get("/tasks/{task_id}",response_model=TaskResponse,)
+def get_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return task_service.get_task(
+        task_id=task_id,
+        current_user=current_user,
+        db=db,
+    )

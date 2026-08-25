@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.models.project import ProjectMember
 from app.models.task import Task
-from app.schemas.task import TaskCreate
+from app.schemas.task import TaskCreate, TaskResponse
 from app.models.enums import TaskPriority, TaskStatus
 from app.services.projects import (
     get_project_or_404,
@@ -87,3 +87,17 @@ def list_tasks(
         .limit(size)
         .all()
     )
+
+def get_task(task_id: int, current_user, db: Session,) -> Task:
+    task = db.query(Task).filter(Task.id == task_id).first()
+
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy task",
+        )
+
+    project = get_project_or_404(task.project_id, db)
+    require_access(project, current_user, db)
+
+    return task
