@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.models.project import ProjectMember
 from app.models.task import Task
-from app.schemas.task import TaskCreate, TaskResponse
+from app.schemas.task import TaskCreate, TaskUpdate
 from app.models.enums import TaskPriority, TaskStatus
 from app.services.projects import (
     get_project_or_404,
@@ -99,5 +99,38 @@ def get_task(task_id: int, current_user, db: Session,) -> Task:
 
     project = get_project_or_404(task.project_id, db)
     require_access(project, current_user, db)
+
+    return task
+
+def update_task(task_id: int, task_in: TaskUpdate, current_user, db: Session,) -> Task:
+    task = get_task(task_id, current_user, db)
+    project = get_project_or_404(task.project_id, db)
+
+    if task_in.assignee_id is not None:
+        assignee_is_owner = project.owner_id == task_in.assignee_id
+
+        assignee_is_member = (
+            db.query(ProjectMember)
+            .filter(
+                ProjectMember.project_id == project.id,
+                ProjectMember.user_id == task_in.assignee_id,
+            )
+            .first()
+            is not None
+        )
+
+        if not assignee_is_owner and not assignee_is_member:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Người được giao phải là thành viên của dự án",
+            )
+
+    update_data = task_in.model_dump(exclude_unset=True)
+    # Gán từng giá trị mới vào object SQLAlchemy
+    for field, value in update_data.items():
+        setattr(task, field, value)
+
+    db.commit()
+    db.refresh(task)
 
     return task
