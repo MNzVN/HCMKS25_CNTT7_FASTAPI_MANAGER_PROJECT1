@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -14,7 +16,11 @@ from app.schemas.project import (
 
 
 def get_project_or_404(project_id: int, db: Session) -> Project:
-	project = db.query(Project).filter(Project.id == project_id).first()
+	project = (
+		db.query(Project)
+		.filter(Project.id == project_id, Project.is_deleted.is_(False))
+		.first()
+	)
 	if project is None:
 		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy dự án")
 	return project
@@ -70,6 +76,7 @@ def list_projects(search: str | None, current_user: User, db: Session) -> list[P
 		db.query(Project)
 		.outerjoin(ProjectMember, Project.id == ProjectMember.project_id)
 		.filter(
+			Project.is_deleted.is_(False),
 			(Project.owner_id == current_user.id)
 			| (ProjectMember.user_id == current_user.id)
 		)
@@ -121,7 +128,8 @@ def update_project(project_id: int, project_in: ProjectUpdate, current_user: Use
 def delete_project(project_id: int, current_user: User, db: Session) -> None:
 	project = get_project_or_404(project_id, db)
 	require_owner(project, current_user)
-	db.delete(project)
+	project.is_deleted = True
+	project.deleted_at = datetime.now(timezone.utc)
 	db.commit()
 
 

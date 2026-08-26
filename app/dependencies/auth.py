@@ -23,6 +23,8 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
+        if payload.get("token_type") == "refresh":
+            raise credentials_exception
         # Lấy user_id được lưu trong trường "sub" của token
         user_id_str: str = payload.get("sub")
         if user_id_str is None:

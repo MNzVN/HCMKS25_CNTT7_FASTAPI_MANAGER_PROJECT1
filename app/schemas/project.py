@@ -38,6 +38,8 @@ class ProjectResponse(ProjectBase):
     id: int
     owner_id: int
     created_at: datetime
+    deleted_at: Optional[datetime] = None
+    is_deleted: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

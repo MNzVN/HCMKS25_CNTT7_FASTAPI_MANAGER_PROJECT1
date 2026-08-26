@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, UniqueConstraint
+from sqlalchemy import Boolean, Column, Integer, String, Text, DateTime, ForeignKey, Enum, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 from app.models.enums import ProjectMemberRole
@@ -12,6 +12,8 @@ class Project(Base):
     description = Column(Text, nullable=True)
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+    is_deleted = Column(Boolean, default=False, nullable=False)
 
     owner = relationship("User", back_populates="owned_projects")
     members = relationship("ProjectMember", back_populates="project", cascade="all, delete-orphan")

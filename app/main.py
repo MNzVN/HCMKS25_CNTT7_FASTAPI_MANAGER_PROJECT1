@@ -1,7 +1,7 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from app.db.database import engine, Base
-from app.core.exceptions import AppException, app_exception_handler, generic_exception_handler, validation_exception_handler
+from app.core.exceptions import generic_exception_handler, validation_exception_handler
 import app.models  # Nạp model để tự động tạo bảng
 from app.routers import auth, users, projects, tasks
 
@@ -18,7 +18,6 @@ app.include_router(users.router)
 app.include_router(projects.router)
 app.include_router(tasks.router)
 # Đăng ký các hàm xử lý lỗi đã viết bên app/core/exceptions.py
-app.add_exception_handler(AppException, app_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 

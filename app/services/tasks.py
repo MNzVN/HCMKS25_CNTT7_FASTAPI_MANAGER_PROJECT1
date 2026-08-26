@@ -50,7 +50,6 @@ def create_task(project_id: int, task_in: TaskCreate, current_user, db: Session,
     db.refresh(task)
 
     return task
-
 def list_tasks(
     project_id: int,
     status_filter: TaskStatus | None,

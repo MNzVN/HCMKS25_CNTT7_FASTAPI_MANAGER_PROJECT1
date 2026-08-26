@@ -1,10 +1,12 @@
+import jwt
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.security import create_access_token, get_password_hash, verify_password
+from app.core.config import settings
+from app.core.security import create_access_token, create_refresh_token, get_password_hash, verify_password
 from app.models.enums import UserRole
 from app.models.user import User
-from app.schemas.auth import LoginRequest
+from app.schemas.auth import LoginRequest, RefreshRequest
 from app.schemas.user import UserCreate
 
 
@@ -44,7 +46,45 @@ def login_user(login_data: LoginRequest, db: Session) -> dict[str, str]:
             detail="Tài khoản đã bị khóa",
         )
 
-    access_token = create_access_token(
-        data={"sub": str(user.id), "role": user.role.value}
+    token_data = {"sub": str(user.id), "role": user.role.value}
+    return {
+        "access_token": create_access_token({**token_data, "token_type": "access"}),
+        "refresh_token": create_refresh_token(token_data),
+        "token_type": "bearer",
+    }
+
+
+def refresh_access_token(refresh_in: RefreshRequest, db: Session) -> dict[str, str]:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Refresh token không hợp lệ hoặc đã hết hạn",
+        headers={"WWW-Authenticate": "Bearer"},
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+
+    try:
+        payload = jwt.decode(
+            refresh_in.refresh_token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+        )
+        if payload.get("token_type") != "refresh":
+            raise credentials_exception
+        user_id = int(payload.get("sub"))
+    except (jwt.PyJWTError, TypeError, ValueError):
+        raise credentials_exception
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise credentials_exception
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tài khoản đã bị khóa",
+        )
+
+    token_data = {"sub": str(user.id), "role": user.role.value}
+    return {
+        "access_token": create_access_token({**token_data, "token_type": "access"}),
+        "refresh_token": refresh_in.refresh_token,
+        "token_type": "bearer",
+    }
